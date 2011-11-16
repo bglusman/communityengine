@@ -20,9 +20,11 @@ class PostsController < BaseController
   skip_before_filter :verify_authenticity_token, :only => [:update_views, :send_to_friend] #called from ajax on cached pages 
   
   def manage
-    @search = Post.search(params[:search])
-    @search.order ||= :descend_by_created_at    
-    @posts = @search.where(:user_id => @user.id).page(params[:page]).per(params[:size]||10)
+    Post.unscoped do
+      @search = Post.search(params[:search])
+      @search.meta_sort ||= 'created_at.desc'
+      @posts = @search.where(:user_id => @user.id).page(params[:page]).per(params[:size]||10)
+    end
   end
 
   def index
@@ -60,7 +62,7 @@ class PostsController < BaseController
     @rss_title = "#{configatron.community_name}: #{@user.login}'s posts"
     @rss_url = user_posts_path(@user,:format => :rss)
     
-    @post = Post.find(params[:id])
+    @post = Post.unscoped.find(params[:id])
 
     @user = @post.user
     @is_current_user = @user.eql?(current_user)
@@ -70,7 +72,7 @@ class PostsController < BaseController
 
     @previous = @post.previous_post
     @next = @post.next_post    
-    @popular_posts = @user.posts.find(:all, :limit => 10, :order => "view_count DESC")    
+    @popular_posts = @user.posts.except(:order).order('view_count DESC').limit(10).all
     @related = Post.find_related_to(@post)
     @most_commented = Post.find_most_commented    
   end
@@ -96,7 +98,7 @@ class PostsController < BaseController
   
   # GET /posts/1;edit
   def edit
-    @post = Post.find(params[:id])
+    @post = Post.unscoped.find(params[:id])
   end
 
   # POST /posts
@@ -130,7 +132,7 @@ class PostsController < BaseController
   # PUT /posts/1
   # PUT /posts/1.xml
   def update
-    @post = Post.find(params[:id])
+    @post = Post.unscoped.find(params[:id])
     @user = @post.user
     @post.tag_list = params[:tag_list] || ''
     
@@ -240,7 +242,7 @@ class PostsController < BaseController
   
   def require_ownership_or_moderator
     @user ||= User.find(params[:user_id])
-    @post ||= Post.find(params[:id]) if params[:id]
+    @post ||= Post.unscoped.find(params[:id]) if params[:id]
     unless admin? || moderator? || (@post && (@post.user.eql?(current_user))) || (!@post && @user && @user.eql?(current_user))
       redirect_to :controller => 'sessions', :action => 'new' and return false
     end

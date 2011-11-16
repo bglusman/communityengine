@@ -46,6 +46,11 @@ class PostsControllerTest < ActionController::TestCase
     get :show, :id => posts(:funny_post).id, :user_id => users(:quentin)
     assert_response :success
   end
+  
+  test "show post should have popular posts sorted correctly" do
+    get :show, :id => posts(:funny_post).id, :user_id => users(:quentin)
+    assert assigns(:popular_posts).first.view_count > assigns(:popular_posts).last.view_count
+  end
 
   def test_should_show_draft_post
     posts(:funny_post).save_as_draft
@@ -54,6 +59,15 @@ class PostsControllerTest < ActionController::TestCase
     get :preview, :id => posts(:funny_post).id, :user_id => users(:quentin)
     assert_response :success
   end
+
+  def test_should_edit_draft_post
+    posts(:funny_post).save_as_draft
+    
+    login_as :quentin    
+    get :edit, :id => posts(:funny_post).id, :user_id => users(:quentin)
+    assert_response :success
+  end
+
   
   test "shouldn't show draft to logged out or non owner/admin/moderator" do
     posts(:funny_post).save_as_draft
@@ -89,6 +103,16 @@ class PostsControllerTest < ActionController::TestCase
     put :update, :id => posts(:funny_post).id, :user_id => users(:quentin), :post => { :title => "changed_name" }
     assert_redirected_to user_post_path(users(:quentin), assigns(:post))
     assert_equal assigns(:post).title, "changed_name"
+  end
+
+
+  def test_should_update_draft_post
+    posts(:funny_post).save_as_draft
+        
+    login_as :quentin
+    put :update, :id => posts(:funny_post).id, :user_id => users(:quentin), :post => { :title => "changed_name", :published_as => "live" }
+    assert_redirected_to user_post_path(users(:quentin), assigns(:post))
+    assert assigns(:post).is_live?
   end
 
   def test_should_fail_to_update_post
@@ -166,10 +190,10 @@ class PostsControllerTest < ActionController::TestCase
   end  
   
   def test_should_update_views
-    assert_equal 0, posts(:funny_post).view_count
+    assert_equal 1, posts(:funny_post).view_count
     put :update_views, :user_id => posts(:funny_post).user_id, :id => posts(:funny_post)
     assert_response :success
-    assert_equal 1, posts(:funny_post).reload.view_count      
+    assert_equal 2, posts(:funny_post).reload.view_count      
   end
   
   def test_should_not_view_another_users_manage_page
